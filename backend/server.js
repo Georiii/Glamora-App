@@ -115,6 +115,8 @@ const chatRoutes = require('./routes/chat');
 const reportRoutes = require('./routes/report');
 const outfitRoutes = require('./routes/outfits');
 const recommendationRoutes = require('./routes/recommendations');
+const weatherRoutes = require('./routes/weather');
+const adminRoutes = require('../admin-side/admin-api');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/wardrobe', wardrobeRoutes);
@@ -122,6 +124,8 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/outfits', outfitRoutes);
 app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/weather', weatherRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Add error handling middleware AFTER routes
 app.use((err, req, res, next) => {

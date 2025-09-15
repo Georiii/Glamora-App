@@ -1,0 +1,38 @@
+{
+  "name": "glamora-admin-dashboard",
+  "version": "1.0.0",
+  "description": "Administrative dashboard for the Glamora sustainable wardrobe management platform",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server . -p 8080 -o",
+    "dev": "npx http-server . -p 8080 -o -c-1",
+    "build": "echo 'No build process needed for static files'",
+    "serve": "npx http-server . -p 8080",
+    "login": "npx http-server . -p 8080 -o login.html",
+    "analytics": "npx http-server . -p 8080 -o analytics.html",
+    "users": "npx http-server . -p 8080 -o user-management.html",
+    "moderation": "npx http-server . -p 8080 -o content-moderation.html"
+  },
+  "keywords": [
+    "admin",
+    "dashboard",
+    "glamora",
+    "wardrobe",
+    "management",
+    "sustainable-fashion"
+  ],
+  "author": "Glamora Development Team",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/glamora.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/glamora/issues"
+  },
+  "homepage": "https://github.com/your-org/glamora#readme"
+}
