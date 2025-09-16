@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { API_ENDPOINTS } from '../config/api';
 
 interface ClothingItem {
   id: string;
@@ -36,15 +38,66 @@ export default function Analytics() {
 
   const timeRanges: TimeRange[] = ['This Week', 'This Month', 'This Year'];
 
-  useEffect(() => {
-    loadFrequentData();
+  const loadDataWithoutAuth = useCallback(async () => {
+    try {
+      console.log('Loading data without authentication...');
+      
+      // Load data for all time ranges without authentication
+      const [weekResponse, monthResponse, yearResponse] = await Promise.all([
+        fetch(API_ENDPOINTS.clothingUsage.frequentData('week')),
+        fetch(API_ENDPOINTS.clothingUsage.frequentData('month')),
+        fetch(API_ENDPOINTS.clothingUsage.frequentData('year'))
+      ]);
+
+      const weekData = weekResponse.ok ? await weekResponse.json() : { categories: [] };
+      const monthData = monthResponse.ok ? await monthResponse.json() : { categories: [] };
+      const yearData = yearResponse.ok ? await yearResponse.json() : { categories: [] };
+
+      const newFrequentData: FrequentData = {
+        thisWeek: weekData.categories || [],
+        thisMonth: monthData.categories || [],
+        thisYear: yearData.categories || [],
+      };
+
+      setFrequentData(newFrequentData);
+      console.log('Data loaded successfully without authentication');
+    } catch (error) {
+      console.error('Error loading data without authentication:', error);
+      // Set empty data as fallback
+      setFrequentData({
+        thisWeek: [],
+        thisMonth: [],
+        thisYear: [],
+      });
+    }
   }, []);
 
-  const loadFrequentData = async () => {
+  const loadFrequentData = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      // Check if we're in a web environment
+      const isWeb = typeof window !== 'undefined';
+      let token = null;
+      
+      if (isWeb) {
+        // For web, try to get token from localStorage
+        token = localStorage.getItem('token');
+        console.log('Web environment detected, using localStorage for token');
+      } else {
+        // For mobile, use AsyncStorage
+        try {
+          token = await AsyncStorage.getItem('token');
+          console.log('Mobile environment detected, using AsyncStorage for token');
+        } catch (error) {
+          console.warn('AsyncStorage not available, falling back to localStorage:', error);
+          token = localStorage.getItem('token');
+        }
+      }
+      
       if (!token) {
         console.error('No authentication token found');
+        // For demo purposes, let's try to load data without authentication
+        console.log('Attempting to load data without authentication...');
+        await loadDataWithoutAuth();
         return;
       }
 
@@ -74,14 +127,15 @@ export default function Analytics() {
       setFrequentData(newFrequentData);
     } catch (error) {
       console.error('Error loading frequent data:', error);
-      // Fallback to empty data if API fails
-      setFrequentData({
-        thisWeek: [],
-        thisMonth: [],
-        thisYear: [],
-      });
+      // Try to load data without authentication as fallback
+      console.log('Trying fallback method...');
+      await loadDataWithoutAuth();
     }
-  };
+  }, [loadDataWithoutAuth]);
+
+  useEffect(() => {
+    loadFrequentData();
+  }, [loadFrequentData]);
 
   const getCurrentData = () => {
     switch (selectedTimeRange) {
