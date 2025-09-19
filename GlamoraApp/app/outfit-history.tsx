@@ -5,7 +5,6 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Image,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -40,24 +39,10 @@ export default function OutfitHistory() {
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    loadUserData();
     loadOutfits();
   }, []);
-
-  const loadUserData = async () => {
-    try {
-      const userStr = await AsyncStorage.getItem('user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        setCurrentUser(user);
-      }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    }
-  };
 
   const loadOutfits = async (isRefresh = false) => {
     try {
@@ -81,7 +66,11 @@ export default function OutfitHistory() {
 
       if (response.ok) {
         const data = await response.json();
-        setOutfits(data.outfits || []);
+        // Sort outfits by date (newest first)
+        const sortedOutfits = (data.outfits || []).sort((a: Outfit, b: Outfit) => 
+          new Date(b.wornDate || b.createdAt).getTime() - new Date(a.wornDate || a.createdAt).getTime()
+        );
+        setOutfits(sortedOutfits);
       } else {
         console.error('Failed to fetch outfits:', response.status);
       }
@@ -94,93 +83,6 @@ export default function OutfitHistory() {
     }
   };
 
-  const toggleFavorite = async (outfitId: string) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
-      const response = await fetch(API_ENDPOINTS.outfitToggleFavorite(outfitId), {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        // Update local state
-        setOutfits(prev => prev.map(outfit => 
-          outfit._id === outfitId 
-            ? { ...outfit, isFavorite: !outfit.isFavorite }
-            : outfit
-        ));
-      }
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
-    }
-  };
-
-  const deleteOutfit = async (outfitId: string) => {
-    Alert.alert(
-      'Delete Outfit',
-      'Are you sure you want to delete this outfit?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const token = await AsyncStorage.getItem('token');
-              if (!token) return;
-
-              const response = await fetch(API_ENDPOINTS.outfitById(outfitId), {
-                method: 'DELETE',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                },
-              });
-
-              if (response.ok) {
-                setOutfits(prev => prev.filter(outfit => outfit._id !== outfitId));
-                Alert.alert('Success', 'Outfit deleted successfully');
-              }
-            } catch (error) {
-              console.error('Error deleting outfit:', error);
-              Alert.alert('Error', 'Failed to delete outfit');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const markAsWorn = async (outfitId: string) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
-      // Track clothing usage for this outfit
-      const response = await fetch(API_ENDPOINTS.clothingUsage.track, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ outfitId }),
-      });
-
-      if (response.ok) {
-        Alert.alert('Success', 'Outfit marked as worn! Usage tracked.');
-      } else {
-        console.error('Failed to track clothing usage');
-        Alert.alert('Error', 'Failed to track usage');
-      }
-    } catch (error) {
-      console.error('Error marking as worn:', error);
-      Alert.alert('Error', 'Failed to mark as worn');
-    }
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -190,16 +92,20 @@ export default function OutfitHistory() {
     });
   };
 
-  const getOutfitPreview = (outfitItems: OutfitItem[]) => {
-    // Get the first few items for preview
-    const previewItems = outfitItems.slice(0, 3);
-    return previewItems.map(item => item.itemName).join(', ');
+  const handleOutfitPress = (outfit: Outfit) => {
+    // Navigate to outfit history detail with the outfit data
+    router.push({
+      pathname: '/outfit-history-detail',
+      params: {
+        outfitData: JSON.stringify(outfit)
+      }
+    });
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8B4513" />
+        <ActivityIndicator size="large" color="#4B2E2B" />
         <Text style={styles.loadingText}>Loading your outfit history...</Text>
       </View>
     );
@@ -213,9 +119,7 @@ export default function OutfitHistory() {
           <Ionicons name="arrow-back" size={24} color="#4B2E2B" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Combine History</Text>
-        <TouchableOpacity style={styles.addButton} onPress={() => alert('Create outfit feature coming soon!')}>
-          <Ionicons name="add" size={24} color="#4B2E2B" />
-        </TouchableOpacity>
+        <View style={styles.placeholder} />
       </View>
 
       <ScrollView 
@@ -234,111 +138,25 @@ export default function OutfitHistory() {
             </Text>
             <TouchableOpacity 
               style={styles.createOutfitButton}
-              onPress={() => alert('Create outfit feature coming soon!')}
+              onPress={() => (router as any).push('/combine-outfits')}
             >
               <Text style={styles.createOutfitButtonText}>Create Your First Outfit</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          outfits.map((outfit, index) => (
-            <View key={outfit._id} style={styles.outfitCard}>
-              {/* Outfit Header */}
-              <View style={styles.outfitHeader}>
-                <View style={styles.outfitTitleRow}>
-                  <Text style={styles.outfitTitle}>{outfit.outfitName}</Text>
-                  <View style={styles.outfitActions}>
-                    <TouchableOpacity 
-                      style={styles.actionButton}
-                      onPress={() => markAsWorn(outfit._id)}
-                    >
-                      <Ionicons name="checkmark-circle-outline" size={20} color="#27AE60" />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={styles.actionButton}
-                      onPress={() => toggleFavorite(outfit._id)}
-                    >
-                      <Ionicons 
-                        name={outfit.isFavorite ? "heart" : "heart-outline"} 
-                        size={20} 
-                        color={outfit.isFavorite ? "#E74C3C" : "#4B2E2B"} 
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={styles.actionButton}
-                      onPress={() => deleteOutfit(outfit._id)}
-                    >
-                      <Ionicons name="trash-outline" size={20} color="#E74C3C" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                
-                {/* Outfit Preview Images */}
-                <View style={styles.outfitPreview}>
-                  {outfit.outfitItems.slice(0, 2).map((item, itemIndex) => (
-                    <Image
-                      key={item.wardrobeItemId}
-                      source={{ uri: item.itemImageUrl }}
-                      style={[
-                        styles.outfitImage,
-                        itemIndex === 1 && styles.outfitImageOverlap
-                      ]}
-                      resizeMode="cover"
-                    />
-                  ))}
-                </View>
-              </View>
-
-              {/* Outfit Details */}
-              <View style={styles.outfitDetails}>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Date:</Text>
-                  <Text style={styles.detailValue}>{formatDate(outfit.wornDate)}</Text>
-                </View>
-                
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Clothes details:</Text>
-                </View>
-                
-                {outfit.outfitItems.map((item, itemIndex) => (
-                  <View key={item.wardrobeItemId} style={styles.itemDetail}>
-                    <Text style={styles.itemName}>{item.itemName}</Text>
-                    <Text style={styles.itemDescription}>
-                      {item.itemDescription || `${item.itemCategory} item`}
-                    </Text>
-                  </View>
-                ))}
-
-                {outfit.occasion && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Occasion:</Text>
-                    <Text style={styles.detailValue}>{outfit.occasion}</Text>
-                  </View>
-                )}
-
-                {outfit.weather && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Weather:</Text>
-                    <Text style={styles.detailValue}>{outfit.weather}</Text>
-                  </View>
-                )}
-
-                {outfit.notes && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Notes:</Text>
-                    <Text style={styles.detailValue}>{outfit.notes}</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* View Details Button */}
-              <TouchableOpacity 
-                style={styles.viewDetailsButton}
-                onPress={() => alert('Outfit details view coming soon!')}
-              >
-                <Text style={styles.viewDetailsText}>View Details</Text>
-                <Ionicons name="chevron-forward" size={16} color="#8B4513" />
-              </TouchableOpacity>
-            </View>
+          outfits.map((outfit) => (
+            <TouchableOpacity 
+              key={outfit._id} 
+              style={styles.historyRow}
+              onPress={() => handleOutfitPress(outfit)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.historyDate}>
+                {formatDate(outfit.wornDate || outfit.createdAt)}
+              </Text>
+              <Text style={styles.historyOutfit}>{outfit.outfitName}</Text>
+              <Ionicons name="chevron-forward" size={20} color="#4B2E2B" />
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
@@ -349,13 +167,13 @@ export default function OutfitHistory() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4C2C2',
+    backgroundColor: '#FDF7F5',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F4C2C2',
+    backgroundColor: '#FDF7F5',
   },
   loadingText: {
     marginTop: 16,
@@ -369,7 +187,7 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
-    backgroundColor: '#F4C2C2',
+    backgroundColor: '#FDF7F5',
     borderBottomWidth: 1,
     borderBottomColor: '#E5D1C0',
   },
@@ -381,8 +199,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#4B2E2B',
   },
-  addButton: {
-    padding: 8,
+  placeholder: {
+    width: 40,
   },
   scrollView: {
     flex: 1,
@@ -408,7 +226,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   createOutfitButton: {
-    backgroundColor: '#8B4513',
+    backgroundColor: '#4B2E2B',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 20,
@@ -418,97 +236,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  outfitCard: {
-    backgroundColor: '#F8E3D6',
-    borderRadius: 16,
-    padding: 20,
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: '#E5D1C0',
-  },
-  outfitHeader: {
-    marginBottom: 16,
-  },
-  outfitTitleRow: {
+  historyRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5D1C0',
   },
-  outfitTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#4B2E2B',
-    flex: 1,
-  },
-  outfitActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionButton: {
-    padding: 8,
-    marginLeft: 8,
-  },
-  outfitPreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  outfitImage: {
-    width: 60,
-    height: 80,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  outfitImageOverlap: {
-    marginLeft: -20,
-    zIndex: 1,
-  },
-  outfitDetails: {
-    marginBottom: 16,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  detailLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4B2E2B',
-    width: 100,
-  },
-  detailValue: {
+  historyDate: {
     fontSize: 16,
     color: '#4B2E2B',
     flex: 1,
   },
-  itemDetail: {
-    marginLeft: 100,
-    marginBottom: 4,
-  },
-  itemName: {
+  historyOutfit: {
     fontSize: 16,
-    fontWeight: 'bold',
     color: '#4B2E2B',
-  },
-  itemDescription: {
-    fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  viewDetailsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5D1C0',
-  },
-  viewDetailsText: {
-    fontSize: 16,
-    color: '#8B4513',
-    fontWeight: 'bold',
-    marginRight: 8,
+    flex: 1,
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });

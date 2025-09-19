@@ -116,4 +116,7 @@ jspm_packages/
 # TernJS port file
 .tern-port
 
+# Backend uploads directory
+backend/uploads/
+
 app-example

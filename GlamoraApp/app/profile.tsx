@@ -4,36 +4,54 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { API_ENDPOINTS } from '../config/api';
+import { useUser } from './contexts/UserContext';
+
+interface OutfitItem {
+  wardrobeItemId: string;
+  itemName: string;
+  itemDescription: string;
+  itemImageUrl: string;
+  itemCategory: string;
+}
+
+interface Outfit {
+  _id: string;
+  outfitName: string;
+  outfitItems: OutfitItem[];
+  occasion?: string;
+  weather?: string;
+  notes?: string;
+  isFavorite: boolean;
+  wornDate: string;
+  createdAt: string;
+}
 
 export default function Profile() {
   const router = useRouter();
+  const { user } = useUser();
   const [name, setName] = useState('Name');
   const [email, setEmail] = useState('Email');
   const [measurements, setMeasurements] = useState<any>(null);
-  // Temporary profile image
-  const profileImage = 'https://randomuser.me/api/portraits/men/1.jpg';
+  const [recentOutfits, setRecentOutfits] = useState<Outfit[]>([]);
+  
+  // Get profile image from user context or use default
+  const profileImage = user?.profilePicture?.url || 'https://randomuser.me/api/portraits/men/1.jpg';
 
   useEffect(() => {
-    // Try to get user info from AsyncStorage (after login/register)
-    const fetchUser = async () => {
-      try {
-        const userStr = await AsyncStorage.getItem('user');
-        if (userStr) {
-          const user = JSON.parse(userStr);
-          setName(user.name || 'Name');
-          setEmail(user.email || 'Email');
-          
-          // Load user profile with measurements
-          if (user.email) {
-            await loadUserProfile(user.email);
-          }
-        }
-      } catch {
-        // Handle error silently
+    // Update local state from user context
+    if (user) {
+      setName(user.name || 'Name');
+      setEmail(user.email || 'Email');
+      setMeasurements(user.bodyMeasurements || null);
+      
+      // Load user profile with measurements if not in context
+      if (user.email && !user.bodyMeasurements) {
+        loadUserProfile(user.email);
       }
-    };
-    fetchUser();
-  }, []);
+      
+      loadRecentOutfits();
+    }
+  }, [user]);
 
   const loadUserProfile = async (userEmail: string) => {
     try {
@@ -47,6 +65,49 @@ export default function Profile() {
     } catch (error) {
       console.error('Error loading user profile:', error);
     }
+  };
+
+  const loadRecentOutfits = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(API_ENDPOINTS.outfits, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Sort outfits by date (newest first) and take only the first 3
+        const sortedOutfits = (data.outfits || []).sort((a: Outfit, b: Outfit) => 
+          new Date(b.wornDate || b.createdAt).getTime() - new Date(a.wornDate || a.createdAt).getTime()
+        ).slice(0, 3);
+        setRecentOutfits(sortedOutfits);
+      }
+    } catch (error) {
+      console.error('Error loading recent outfits:', error);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const handleOutfitPress = (outfit: Outfit) => {
+    // Navigate to outfit history detail with the outfit data
+    router.push({
+      pathname: '/outfit-history-detail',
+      params: {
+        outfitData: JSON.stringify(outfit)
+      }
+    });
   };
 
   return (
@@ -131,22 +192,27 @@ export default function Profile() {
               <Text style={styles.viewAll}>View all</Text>
             </TouchableOpacity>
           </View>
-          {/* Example history */}
-          <View style={styles.historyRow}>
-            <Text style={styles.historyDate}>April 16, 2025</Text>
-            <Text style={styles.historyOutfit}>Outfit 2</Text>
-            <Ionicons name="chevron-forward" size={20} color="#4B2E2B" />
-          </View>
-          <View style={styles.historyRow}>
-            <Text style={styles.historyDate}>April 14, 2025</Text>
-            <Text style={styles.historyOutfit}>Outfit 3</Text>
-            <Ionicons name="chevron-forward" size={20} color="#4B2E2B" />
-          </View>
-          <View style={styles.historyRow}>
-            <Text style={styles.historyDate}>April 13, 2025</Text>
-            <Text style={styles.historyOutfit}>Outfit 1</Text>
-            <Ionicons name="chevron-forward" size={20} color="#4B2E2B" />
-          </View>
+          {/* Recent outfit history */}
+          {recentOutfits.length === 0 ? (
+            <View style={styles.emptyHistory}>
+              <Text style={styles.emptyHistoryText}>No recent outfits</Text>
+            </View>
+          ) : (
+            recentOutfits.map((outfit) => (
+              <TouchableOpacity 
+                key={outfit._id} 
+                style={styles.historyRow}
+                onPress={() => handleOutfitPress(outfit)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.historyDate}>
+                  {formatDate(outfit.wornDate || outfit.createdAt)}
+                </Text>
+                <Text style={styles.historyOutfit}>{outfit.outfitName}</Text>
+                <Ionicons name="chevron-forward" size={20} color="#4B2E2B" />
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       </View>
       {/* Footer Navigation */}
@@ -269,5 +335,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 4,
+  },
+  emptyHistory: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  emptyHistoryText: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
   },
 }); 

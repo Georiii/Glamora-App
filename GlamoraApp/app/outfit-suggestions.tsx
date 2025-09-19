@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { API_ENDPOINTS } from '../config/api';
 
 interface OutfitCombination {
   id: string;
@@ -99,105 +98,15 @@ export default function OutfitSuggestions() {
     }
   };
 
-  const saveOutfit = async (outfit: OutfitCombination) => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'Please login to save outfits');
-        return;
+  const handleOutfitPress = (outfit: OutfitCombination) => {
+    // Navigate to outfit details with the outfit data
+    router.push({
+      pathname: '/outfit-details',
+      params: {
+        outfitData: JSON.stringify(outfit)
       }
-
-      const outfitData = {
-        outfitName: outfit.name,
-        outfitItems: [
-          {
-            wardrobeItemId: outfit.top._id,
-            itemName: outfit.top.clothName,
-            itemImageUrl: outfit.top.imageUrl,
-            itemCategory: outfit.top.category,
-          },
-          {
-            wardrobeItemId: outfit.bottom._id,
-            itemName: outfit.bottom.clothName,
-            itemImageUrl: outfit.bottom.imageUrl,
-            itemCategory: outfit.bottom.category,
-          }
-        ],
-        occasion: outfit.occasion,
-        weather: outfit.weather,
-        notes: 'Generated outfit combination'
-      };
-
-      console.log('🔍 Saving outfit to backend:', outfitData);
-      
-      // Save to backend
-      const response = await fetch(API_ENDPOINTS.outfits, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(outfitData),
-      });
-
-      if (response.ok) {
-        const savedOutfit = await response.json();
-        console.log('✅ Outfit saved successfully:', savedOutfit);
-        
-        // Track clothing usage for this outfit
-        await trackClothingUsage(savedOutfit.outfit._id, token);
-        
-        Alert.alert(
-          'Success!', 
-          'Outfit saved to your collection!', 
-          [
-            {
-              text: 'View History',
-              onPress: () => goToOutfitHistory()
-            },
-            {
-              text: 'Continue Browsing',
-              style: 'cancel'
-            }
-          ]
-        );
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        console.error('❌ Backend error:', response.status, errorData);
-        Alert.alert('Error', `Failed to save outfit: ${errorData.message || 'Server error'}`);
-      }
-    } catch (error) {
-      console.error('❌ Error saving outfit:', error);
-      Alert.alert('Error', 'Failed to save outfit. Please check your connection and try again.');
-    }
+    });
   };
-
-  const goToOutfitHistory = () => {
-    (router as any).push('/outfit-history');
-  };
-
-  const trackClothingUsage = async (outfitId: string, token: string) => {
-    try {
-      const response = await fetch(API_ENDPOINTS.clothingUsage.track, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ outfitId }),
-      });
-
-      if (response.ok) {
-        console.log('✅ Clothing usage tracked successfully');
-      } else {
-        console.error('❌ Failed to track clothing usage');
-      }
-    } catch (error) {
-      console.error('❌ Error tracking clothing usage:', error);
-    }
-  };
-
-  // AI metric color helper removed (no longer used)
 
   if (loading) {
     return (
@@ -229,6 +138,7 @@ export default function OutfitSuggestions() {
 
   return (
     <View style={styles.container}>
+      {/* Weather Banner */}
       {outfits[0]?.weatherMeta ? (
         <View style={styles.weatherBanner}>
           <View style={styles.weatherLeft}>
@@ -253,6 +163,7 @@ export default function OutfitSuggestions() {
           </View>
         </View>
       )}
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => (router as any).push('/combine-outfits')}>
@@ -263,9 +174,14 @@ export default function OutfitSuggestions() {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Outfit Suggestions */}
+        {/* Outfit List */}
         {outfits.map((outfit, index) => (
-          <View key={outfit.id} style={styles.outfitCard}>
+          <TouchableOpacity 
+            key={outfit.id} 
+            style={styles.outfitCard}
+            onPress={() => handleOutfitPress(outfit)}
+            activeOpacity={0.7}
+          >
             {/* Outfit Header */}
             <View style={styles.outfitHeader}>
               <View style={styles.outfitTitleContainer}>
@@ -273,14 +189,11 @@ export default function OutfitSuggestions() {
                   {outfit.name}
                   <Text style={styles.weatherOptimizedLabel}>  • Weather-Optimized Outfit</Text>
                 </Text>
-                {/* AI badge removed */}
               </View>
               <View style={styles.outfitBadge}>
                 <Text style={styles.outfitBadgeText}>{outfit.occasion}</Text>
               </View>
             </View>
-
-            {/* AI Confidence Indicators removed */}
 
             {/* Outfit Preview Images */}
             <View style={styles.outfitPreview}>
@@ -310,92 +223,40 @@ export default function OutfitSuggestions() {
                   </View>
                 )}
               </View>
+              {/* Add more preview images if needed */}
+              {outfit.shoes && (
+                <View style={styles.outfitImageContainer}>
+                  <Image
+                    source={{ uri: outfit.shoes.imageUrl }}
+                    style={[styles.outfitImage, styles.outfitImageOverlap]}
+                    resizeMode="cover"
+                    onError={() => console.log('Shoes image failed to load:', outfit.shoes?.imageUrl || 'No image URL')}
+                  />
+                </View>
+              )}
             </View>
 
-            {/* Outfit Details */}
-            <View style={styles.outfitDetails}>
-              {/* Top Item */}
-              <View style={styles.itemSection}>
-                <Text style={styles.itemLabel}>Top:</Text>
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName}>{outfit.top.clothName}</Text>
-                  <Text style={styles.itemDescription}>
-                    {outfit.top.description || `${outfit.top.category} - ${outfit.top.color || 'N/A'}`}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Bottom Item */}
-              <View style={styles.itemSection}>
-                <Text style={styles.itemLabel}>Bottom:</Text>
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName}>{outfit.bottom.clothName}</Text>
-                  <Text style={styles.itemDescription}>
-                    {outfit.bottom.description || `${outfit.bottom.category} - ${outfit.bottom.color || 'N/A'}`}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.itemSection}>
-                <Text style={styles.itemLabel}>Shoes:</Text>
-                {outfit.shoes ? (
-                  <View style={styles.itemInfoRow}>
-                    <Image source={{ uri: outfit.shoes.imageUrl }} style={styles.inlineImage} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.itemName}>{outfit.shoes.clothName}</Text>
-                      <Text style={styles.itemDescription}>
-                        {outfit.shoes.description || `${outfit.shoes.category} - ${outfit.shoes.color || 'N/A'}`}
-                      </Text>
-                    </View>
-                  </View>
-                ) : (
-                  <Text style={styles.itemValue}>N/A</Text>
-                )}
-              </View>
-
-              <View style={styles.itemSection}>
-                <Text style={styles.itemLabel}>Accessories:</Text>
-                {outfit.accessories && outfit.accessories.length > 0 ? (
-                  <View style={styles.accessoryList}>
-                    {outfit.accessories.map((acc, i) => (
-                      <View key={i} style={styles.accessoryItem}>
-                        <Image source={{ uri: acc.imageUrl }} style={styles.accessoryImage} />
-                        <Text style={styles.itemDescription}> {acc.clothName}</Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={styles.itemValue}>N/A</Text>
-                )}
-              </View>
-
-              {/* Weather and Occasion */}
-              <View style={styles.itemSection}>
-                <Text style={styles.itemLabel}>Weather:</Text>
-                <Text style={styles.itemValue}>{outfit.weather}</Text>
-              </View>
-              <View style={styles.itemSection}>
-                <Text style={styles.itemLabel}>Occasion:</Text>
-                <Text style={styles.itemValue}>{outfit.occasion}</Text>
-              </View>
-
-              {/* AI Metrics removed */}
+            {/* Quick Preview Info */}
+            <View style={styles.quickPreview}>
+              <Text style={styles.quickPreviewText}>
+                {outfit.top.clothName} + {outfit.bottom.clothName}
+                {outfit.shoes && ` + ${outfit.shoes.clothName}`}
+                {outfit.accessories && outfit.accessories.length > 0 && ` + ${outfit.accessories.length} accessories`}
+              </Text>
             </View>
 
-            {/* Use It Button */}
-            <TouchableOpacity 
-              style={styles.useItButton}
-              onPress={() => saveOutfit(outfit)}
-            >
-              <Text style={styles.useItButtonText}>Use it</Text>
-            </TouchableOpacity>
-          </View>
+            {/* Tap to view details hint */}
+            <View style={styles.tapHint}>
+              <Ionicons name="chevron-forward" size={16} color="#666" />
+              <Text style={styles.tapHintText}>Tap to view details</Text>
+            </View>
+          </TouchableOpacity>
         ))}
 
         {/* View All Outfits Button */}
         <TouchableOpacity 
           style={styles.viewAllButton}
-          onPress={goToOutfitHistory}
+          onPress={() => (router as any).push('/outfit-history')}
         >
           <Text style={styles.viewAllButtonText}>View Combine History</Text>
         </TouchableOpacity>
@@ -531,90 +392,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f0f0f0',
   },
-  outfitDetails: {
-    marginBottom: 16,
+  quickPreview: {
+    marginBottom: 12,
   },
-  itemSection: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  itemLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4B2E2B',
-    width: 80,
-  },
-  itemInfo: {
-    flex: 1,
-  },
-  itemInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  inlineImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#E5D1C0',
-  },
-  accessoryList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  accessoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8E3D6',
-    borderWidth: 1,
-    borderColor: '#E5D1C0',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  accessoryImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    marginRight: 6,
-    borderWidth: 1,
-    borderColor: '#E5D1C0',
-  },
-  itemName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4B2E2B',
-    marginBottom: 2,
-  },
-  itemDescription: {
+  quickPreviewText: {
     fontSize: 14,
     color: '#666',
     fontStyle: 'italic',
   },
-  itemValue: {
-    fontSize: 16,
-    color: '#4B2E2B',
-    flex: 1,
+  tapHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
-  useItButton: {
-    backgroundColor: '#F8E3D6',
-    borderWidth: 1,
-    borderColor: '#4B2E2B',
-    borderRadius: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignSelf: 'flex-end',
-  },
-  useItButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4B2E2B',
+  tapHintText: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 4,
   },
   viewAllButton: {
     backgroundColor: '#F8E3D6',
@@ -671,57 +465,5 @@ const styles = StyleSheet.create({
   weatherTemp: {
     color: '#4B2E2B',
     fontWeight: '700',
-  },
-  aiIndicator: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 8,
-  },
-  aiIndicatorText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  confidenceContainer: {
-    marginBottom: 16,
-  },
-  confidenceBar: {
-    height: 6,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 4,
-  },
-  confidenceFill: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 3,
-  },
-  confidenceText: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-  },
-  aiMetricsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-  },
-  metricItem: {
-    alignItems: 'center',
-  },
-  metricLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
-  },
-  metricValue: {
-    fontSize: 12,
-    fontWeight: 'bold',
   },
 });

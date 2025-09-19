@@ -39,6 +39,8 @@ export const API_ENDPOINTS = {
   baseUrl: API_BASE_URL,
   updateProfile: `${API_BASE_URL}/api/auth/profile/measurements`,
   getProfile: (email: string) => `${API_BASE_URL}/api/auth/profile/${email}`,
+  uploadProfilePicture: `${API_BASE_URL}/api/auth/profile/picture`,
+  updateUser: (id: string) => `${API_BASE_URL}/api/auth/users/${id}`,
   
   // Wardrobe
   wardrobe: `${API_BASE_URL}/api/wardrobe/`,
