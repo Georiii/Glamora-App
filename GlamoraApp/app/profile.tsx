@@ -33,7 +33,6 @@ export default function Profile() {
   const [email, setEmail] = useState('Email');
   const [measurements, setMeasurements] = useState<any>(null);
   const [recentOutfits, setRecentOutfits] = useState<Outfit[]>([]);
-  
   // Get profile image from user context or use default
   const profileImage = user?.profilePicture?.url || 'https://randomuser.me/api/portraits/men/1.jpg';
 

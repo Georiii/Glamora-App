@@ -82,4 +82,3 @@ const ProfilePictureProvider: React.FC<ProfilePictureProviderProps> = ({ childre
 };
 
 export default ProfilePictureProvider;
-export { ProfilePictureProvider };
